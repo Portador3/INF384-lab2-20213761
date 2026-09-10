@@ -81,3 +81,37 @@ def desglose(envio: Envio) -> dict[str, float]:
         "factor_zona": factor,
         "total": calcular(envio),
     }
+
+
+def estimar_tiempo_entrega_y_recargos(
+    envio: Envio, dias_festivos: int = 0
+) -> dict[str, float | str]:
+    dias_base = 2
+    factor = factor_zona(envio.zona)
+
+    if factor > 1.5:
+        dias_base += 3
+    elif factor > 1.0:
+        dias_base += 1
+
+    if envio.peso_kg > 50.0:
+        dias_base += 2
+    elif envio.peso_kg > 20.0:
+        dias_base += 1
+
+    if envio.urgente:
+        dias_base = max(1, dias_base - 2)
+
+    dias_totales = dias_base + dias_festivos
+    penalizacion_demora = 0.0
+
+    if dias_totales > 5:
+        penalizacion_demora = (dias_totales - 5) * 12.50
+    elif dias_totales > 3 and envio.urgente:
+        penalizacion_demora = 25.00
+
+    return {
+        "dias_estimados": dias_totales,
+        "penalizacion": round(penalizacion_demora, 2),
+        "nivel_prioridad": "Alta" if envio.urgente else "Normal",
+    }
