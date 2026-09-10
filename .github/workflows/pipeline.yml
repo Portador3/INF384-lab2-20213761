@@ -2,6 +2,7 @@ name: pipeline
 
 on:
   push:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -19,11 +20,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.lock'
 
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.lock
 
       - name: Ejecutar pruebas
         run: pytest --cov=src --cov-report=xml
@@ -35,11 +38,13 @@ jobs:
           SONAR_HOST_URL: https://sonarcloud.io
         with:
           args: >
-            -Dsonar.organization=${{ vars.SONAR_ORG }}
-            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.qualitygate.wait=true
 
   publicar:
     name: Publicar artefacto
+    needs: validar
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Descargar el codigo
@@ -49,11 +54,17 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'requirements.lock'
 
       - name: Instalar dependencias
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r requirements.lock
+
+      - name: Leer versión del proyecto
+        id: version_step
+        run: echo "VERSION=$(cat VERSION)" >> $GITHUB_OUTPUT
 
       - name: Construir el paquete
         run: python -m build
@@ -61,6 +72,6 @@ jobs:
       - name: Publicar el paquete
         uses: actions/upload-artifact@v4
         with:
-          name: paquete
+          name: despachos-${{ steps.version_step.outputs.VERSION }}
           path: dist/
           overwrite: true
